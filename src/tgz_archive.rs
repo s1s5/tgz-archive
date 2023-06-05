@@ -1,13 +1,13 @@
-use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::format_ident;
 use quote::quote;
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::path::PathBuf;
-use syn::{punctuated::Punctuated, token::Comma, Attribute, ExprPath, Ident, Lit, Meta};
+use syn::{punctuated::Punctuated, token::Comma, Attribute, Ident, Lit, Meta};
 
 type Result = std::result::Result<TokenStream, syn::Error>;
 
+#[derive(Debug, PartialEq)]
 enum GzipStrategy {
     Never,
     Auto,
@@ -43,7 +43,7 @@ impl TgzArchiveExpander {
                                         "path must be expression",
                                     )),
                                 }?;
-                            } else if ident == "auto_gzip" {
+                            } else if ident == "gzip" {
                                 gzip = match &nv.value {
                                     syn::Expr::Lit(lit) => match &lit.lit {
                                         Lit::Str(s) => {
@@ -84,6 +84,16 @@ impl TgzArchiveExpander {
         Ok(TgzArchiveExpander { ident, path, gzip })
     }
 
+    fn get_gzipped_content(&self, content: &[u8]) -> Vec<u8> {
+        let mut gzipped_content = Vec::new();
+        let mut encoder =
+            flate2::write::GzEncoder::new(&mut gzipped_content, flate2::Compression::default());
+        encoder.write_all(&content).unwrap();
+        encoder.finish().unwrap();
+
+        gzipped_content
+    }
+
     fn expand_tgz(&self) -> Result {
         let mut all_data: Vec<u8> = Vec::new();
         let mut dir_vec = vec![self.path.clone()];
@@ -102,26 +112,25 @@ impl TgzArchiveExpander {
                 if path.is_file() {
                     let file_path = path.strip_prefix(&self.path).unwrap().display().to_string();
                     let content = std::fs::read(path).unwrap();
-                    let mut gzipped_content = Vec::new();
-                    {
-                        let mut encoder = flate2::write::GzEncoder::new(
-                            &mut gzipped_content,
-                            flate2::Compression::default(),
-                        );
-                        encoder.write_all(&content).unwrap();
-                        encoder.finish().unwrap();
-                    }
+
+                    let (gzipped_content, use_gzipped) = match self.gzip {
+                        GzipStrategy::Never => (Vec::new(), false),
+                        GzipStrategy::Auto => {
+                            let gc = self.get_gzipped_content(&content);
+                            let is_gzipped = gc.len() < content.len();
+                            (gc, is_gzipped)
+                        }
+                        GzipStrategy::All => (self.get_gzipped_content(&content), true),
+                    };
 
                     let sp = all_data.len();
-                    let is_gzipped = if content.len() < gzipped_content.len() {
-                        all_data.extend(&content);
-                        false
-                    } else {
+                    if use_gzipped {
                         all_data.extend(&gzipped_content);
-                        true
+                    } else {
+                        all_data.extend(&content);
                     };
                     let ep = all_data.len();
-                    files.push((file_path, (sp, ep, is_gzipped)));
+                    files.push((file_path, (sp, ep, use_gzipped)));
                 } else if path.is_dir() {
                     dir_vec.push(path);
                 }
@@ -139,29 +148,50 @@ impl TgzArchiveExpander {
         let disps_1: Vec<u32> = phf_hash_state.disps.iter().map(|e| e.1).collect();
 
         let ident = &self.ident;
-        let data_ident = format_ident!("{}__data", self.ident);
-        let file_map_ident = format_ident!("{}__file_map", self.ident);
+        let data_ident = format_ident!("{}__DATA", self.ident.to_string().to_uppercase());
+        let file_map_ident = format_ident!("{}__FILE_MAP", self.ident.to_string().to_uppercase());
 
-        Ok(quote! {
-            impl #ident {
-                pub fn get(path: &str) -> Option<(&[u8], bool)> {
-                    if let Some(entry) = #file_map_ident.get(path) {
-                        Some((&#data_ident[entry.0..entry.1], entry.2))
-                    } else {
-                        None
+        if (self.gzip == GzipStrategy::All) || (self.gzip == GzipStrategy::Never) {
+            Ok(quote! {
+                impl #ident {
+                    pub fn get(path: &str) -> Option<&[u8]> {
+                        if let Some(entry) = #file_map_ident.get(path) {
+                            Some(&#data_ident[entry.0..entry.1])
+                        } else {
+                            None
+                        }
                     }
                 }
-            }
-            const #data_ident: [u8; #data_size] = [#(#all_data),*];
-            static #file_map_ident: phf::Map<&'static str, (usize, usize, bool)> = ::phf::Map {
-                    key: #key,
-                    disps: &[#((#disps_0, #disps_1)),*],
-                    entries: &[
-                        #((#paths, (#start_pos, #end_pos, #is_gzipped))),*
-                    ],
-                };
-            struct Test {}
-        })
+                const #data_ident: [u8; #data_size] = [#(#all_data),*];
+                static #file_map_ident: phf::Map<&'static str, (usize, usize)> = ::phf::Map {
+                        key: #key,
+                        disps: &[#((#disps_0, #disps_1)),*],
+                        entries: &[
+                            #((#paths, (#start_pos, #end_pos))),*
+                        ],
+                    };
+            })
+        } else {
+            Ok(quote! {
+                impl #ident {
+                    pub fn get(path: &str) -> Option<(&[u8], bool)> {
+                        if let Some(entry) = #file_map_ident.get(path) {
+                            Some((&#data_ident[entry.0..entry.1], entry.2))
+                        } else {
+                            None
+                        }
+                    }
+                }
+                const #data_ident: [u8; #data_size] = [#(#all_data),*];
+                static #file_map_ident: phf::Map<&'static str, (usize, usize, bool)> = ::phf::Map {
+                        key: #key,
+                        disps: &[#((#disps_0, #disps_1)),*],
+                        entries: &[
+                            #((#paths, (#start_pos, #end_pos, #is_gzipped))),*
+                        ],
+                    };
+            })
+        }
     }
 
     pub fn expand(&self) -> Result {

@@ -34,19 +34,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "include-tgz"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "phf_generator",
- "phf_shared",
- "proc-macro2",
- "quote",
- "serde_json",
- "syn",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,11 +150,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tgz-archive"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "phf_generator",
+ "phf_shared",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
 name = "tgz-archive-example"
 version = "0.1.0"
 dependencies = [
- "include-tgz",
  "phf",
+ "tgz-archive",
 ]
 
 [[package]]
