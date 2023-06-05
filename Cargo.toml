@@ -1,0 +1,18 @@
+[package]
+name = "include-tgz"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "^2"
+quote = "^1"
+serde_json = "^1"
+proc-macro2 = "1.0.56"
+flate2 = "*"
+phf_generator = "*"
+phf_shared = { version = "*", features = ["std"] }

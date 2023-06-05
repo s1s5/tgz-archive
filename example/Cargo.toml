@@ -1,0 +1,10 @@
+[workspace]
+
+[package]
+name = "tgz-archive-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+include-tgz = { path = "../" }
+phf = "*"
