@@ -2,7 +2,7 @@
 
 Include all asset files in the binary.
 
-```
+```rust
 use tgz_archive::TgzArchive;
 
 #[derive(TgzArchive)]
