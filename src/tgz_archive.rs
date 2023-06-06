@@ -154,7 +154,7 @@ impl TgzArchiveExpander {
         if (self.gzip == GzipStrategy::All) || (self.gzip == GzipStrategy::Never) {
             Ok(quote! {
                 impl #ident {
-                    pub fn get(path: &str) -> Option<&[u8]> {
+                    pub fn get<'a>(path: &'a str) -> Option<&'static [u8]> {
                         if let Some(entry) = #file_map_ident.get(path) {
                             Some(&#data_ident[entry.0..entry.1])
                         } else {
@@ -174,7 +174,7 @@ impl TgzArchiveExpander {
         } else {
             Ok(quote! {
                 impl #ident {
-                    pub fn get(path: &str) -> Option<(&[u8], bool)> {
+                    pub fn get<'a>(path: &'a str) -> Option<(&'static [u8], bool)> {
                         if let Some(entry) = #file_map_ident.get(path) {
                             Some((&#data_ident[entry.0..entry.1], entry.2))
                         } else {
