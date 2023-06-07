@@ -98,6 +98,7 @@ impl TgzArchiveExpander {
         let mut all_data: Vec<u8> = Vec::new();
         let mut dir_vec = vec![self.path.clone()];
         let mut files: Vec<(String, (usize, usize, bool))> = Vec::new();
+        let mut abs_paths: Vec<String> = Vec::new();
 
         loop {
             if dir_vec.is_empty() {
@@ -110,6 +111,13 @@ impl TgzArchiveExpander {
                 let path = entry.path();
 
                 if path.is_file() {
+                    abs_paths.push(
+                        std::fs::canonicalize(&path)
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    );
                     let file_path = path.strip_prefix(&self.path).unwrap().display().to_string();
                     let content = std::fs::read(path).unwrap();
 
@@ -151,8 +159,15 @@ impl TgzArchiveExpander {
         let data_ident = format_ident!("{}__DATA", self.ident.to_string().to_uppercase());
         let file_map_ident = format_ident!("{}__FILE_MAP", self.ident.to_string().to_uppercase());
 
+        let depends = TokenStream::from_iter(abs_paths.iter().map(|f| {
+            quote! {
+                const _: &[u8] = include_bytes!(#f);
+            }
+        }));
+
         if (self.gzip == GzipStrategy::All) || (self.gzip == GzipStrategy::Never) {
             Ok(quote! {
+                #depends
                 impl #ident {
                     pub fn get<'a>(path: &'a str) -> Option<&'static [u8]> {
                         if let Some(entry) = #file_map_ident.get(path) {
@@ -173,6 +188,7 @@ impl TgzArchiveExpander {
             })
         } else {
             Ok(quote! {
+                #depends
                 impl #ident {
                     pub fn get<'a>(path: &'a str) -> Option<(&'static [u8], bool)> {
                         if let Some(entry) = #file_map_ident.get(path) {
