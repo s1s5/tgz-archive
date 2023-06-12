@@ -14,7 +14,8 @@ struct GzippedAssets;
 
 fn main() {
     // ---- content, is_gzipped ---
-    println!("{:?}", Assets::get("a.txt"));
+    let key = String::from("a.txt");
+    println!("{:?}", Assets::get(&key));
     // >> Some(([104, 101, 108, 108, 111, 10], false))
 
     // ---- raw content ---

@@ -147,10 +147,19 @@ impl TgzArchiveExpander {
 
         let data_size = all_data.len();
         let paths: Vec<String> = files.iter().map(|f| f.0.clone()).collect();
+
+        let phf_hash_state = phf_generator::generate_hash(&paths);
+        let files: Vec<_> = phf_hash_state
+            .map
+            .iter()
+            .map(|x| files[*x].clone())
+            .collect();
+        let paths: Vec<String> = files.iter().map(|f| f.0.clone()).collect();
+
         let start_pos: Vec<usize> = files.iter().map(|f| f.1 .0.clone()).collect();
         let end_pos: Vec<usize> = files.iter().map(|f| f.1 .1.clone()).collect();
         let is_gzipped: Vec<bool> = files.iter().map(|f| f.1 .2.clone()).collect();
-        let phf_hash_state = phf_generator::generate_hash(&paths);
+
         let key = phf_hash_state.key;
         let disps_0: Vec<u32> = phf_hash_state.disps.iter().map(|e| e.0).collect();
         let disps_1: Vec<u32> = phf_hash_state.disps.iter().map(|e| e.1).collect();
