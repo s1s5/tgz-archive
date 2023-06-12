@@ -176,6 +176,9 @@ impl TgzArchiveExpander {
                             None
                         }
                     }
+                    pub fn list<'a>() -> Vec<&'static str> {
+                        #file_map_ident.keys().map(|x| *x).collect()
+                    }
                 }
                 const #data_ident: [u8; #data_size] = [#(#all_data),*];
                 static #file_map_ident: phf::Map<&'static str, (usize, usize)> = ::phf::Map {
@@ -196,6 +199,9 @@ impl TgzArchiveExpander {
                         } else {
                             None
                         }
+                    }
+                    pub fn list<'a>() -> Vec<&'static str> {
+                        #file_map_ident.keys().map(|x| *x).collect()
                     }
                 }
                 const #data_ident: [u8; #data_size] = [#(#all_data),*];
